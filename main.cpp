@@ -82,7 +82,7 @@ struct PhysicsWorld {
     btDiscreteDynamicsWorld* dynamicsWorld;
 
     btCollisionShape* cubeShape;
-    btRigidBody* cubeRigidBody;
+    btRigidBody* cubeRigidBody = nullptr;
     btCollisionShape* floorShape;
     btRigidBody* floorRigidBody;
 
@@ -152,7 +152,11 @@ private:
 
         dynamicsWorld->addRigidBody(newCubeRigidBody);
 
-        delete cubeRigidBody;
+        if(cubeRigidBody)
+        {
+            delete cubeRigidBody->getMotionState();
+            delete cubeRigidBody;
+        }
         cubeRigidBody = newCubeRigidBody;
     }
 };
