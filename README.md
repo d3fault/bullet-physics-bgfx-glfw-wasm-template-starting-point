@@ -19,17 +19,6 @@ Bullet Physics Hello World, a 3D Cube falls onto the ground. Click anywhere to r
 * `source ./emsdk_env.sh`
 * `cd ..`
 
-#### Build bullet physics from source (WebAssembly)
-
-WebAssembly can't use the system-provided libbullet-dev and must build bullet from source.
-
-* `git clone https://github.com/bulletphysics/bullet3.git`
-* `cd bullet3`
-* `emcmake cmake -B buildwasm`
-* `cd buildwasm`
-* `emmake make #it will probably error out on one of the examples, this is fine. just make sure the following exist: buildwasm/src/BulletCollision/libBulletCollision.a, buildwasm/src/LinearMath/libLinearMath.a, and buildwasm/src/BulletDynamics/libBulletDynamics.a`
-* `cd ../..`
-
 ### Building (WebAssembly)
 
 * `git clone https://github.com/d3fault/bullet-physics-bgfx-glfw-wasm-template-starting-point.git`
