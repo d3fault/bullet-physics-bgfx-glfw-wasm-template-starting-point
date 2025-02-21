@@ -220,52 +220,43 @@ void renderFrame() {
     btScalar timeStep = deltaTime.count();
     physicsWorld.dynamicsWorld->stepSimulation(timeStep, 10, fixedTimeStep_aka_1overRefreshRate);
 
-    // Cube 1 (Physics-driven with rotation)
-    btTransform trans;
-    physicsWorld.cubeRigidBody->getMotionState()->getWorldTransform(trans);
-    btVector3 pos = trans.getOrigin();
-    btQuaternion rot = trans.getRotation();
-    btTransform combinedTransform;
-    combinedTransform.setIdentity();
-    combinedTransform.setOrigin(pos);
-    combinedTransform.setRotation(rot);
-    btMatrix3x3 rotMatrix = combinedTransform.getBasis();
-    btVector3 transVec = combinedTransform.getOrigin();
-    float finalMatrix1[16];
-    rotMatrix.getOpenGLSubMatrix(finalMatrix1);
-    finalMatrix1[12] = transVec.x();
-    finalMatrix1[13] = transVec.y();
-    finalMatrix1[14] = transVec.z();
-    finalMatrix1[15] = 1.0f;
+    {
+        // Cube 1 (Physics-driven with rotation)
+        btTransform transform1;
+        physicsWorld.cubeRigidBody->getMotionState()->getWorldTransform(transform1);
+        btMatrix3x3 rotateMatrix1 = transform1.getBasis();
+        btVector3 translateVector1 = transform1.getOrigin();
 
-    bgfx::setTransform(finalMatrix1);
-    bgfx::setVertexBuffer(0, vbh);
-    bgfx::setIndexBuffer(ibh);
-    bgfx::submit(0, program);
+        float finalMatrix1[16];
+        rotateMatrix1.getOpenGLSubMatrix(finalMatrix1);
+        finalMatrix1[12] = translateVector1.x();
+        finalMatrix1[13] = translateVector1.y();
+        finalMatrix1[14] = translateVector1.z();
+        finalMatrix1[15] = 1.0f;
 
-    // Cube 2 (Floor - Static)
-    btScalar scaleX2 = 10.0f;
-    btScalar scaleY2 = 0.5f;
-    btScalar scaleZ2 = 10.0f;
-    btMatrix3x3 scaleMatrix2(scaleX2, 0, 0, 0, scaleY2, 0, 0, 0, scaleZ2);
-    btVector3 translateVector2(0.0f, -2.0f, 0.0f);
-    btTransform combinedTransform2;
-    combinedTransform2.setIdentity();
-    combinedTransform2.setBasis(scaleMatrix2);
-    combinedTransform2.setOrigin(translateVector2);
-    btMatrix3x3 rotMatrix2 = combinedTransform2.getBasis();
-    btVector3 transVec2 = combinedTransform2.getOrigin();
-    float finalMatrix2[16];
-    rotMatrix2.getOpenGLSubMatrix(finalMatrix2);
-    finalMatrix2[12] = transVec2.x();
-    finalMatrix2[13] = transVec2.y();
-    finalMatrix2[14] = transVec2.z();
-    finalMatrix2[15] = 1.0f;
+        bgfx::setTransform(finalMatrix1);
+        bgfx::setVertexBuffer(0, vbh);
+        bgfx::setIndexBuffer(ibh);
+        bgfx::submit(0, program);
+    }
 
-    bgfx::setTransform(finalMatrix2);
-    bgfx::setVertexBuffer(0, vbh);
-    bgfx::setIndexBuffer(ibh);
-    bgfx::submit(0, program);
+    {
+        // Cube 2 (Floor - Static)
+        btMatrix3x3 scaleMatrix2(10.0f, 0, 0, 0, 0.5f, 0, 0, 0, 10.0f); //wide floor but not tall. TODO this is dupe hardcoded in the physics world constructor. i tried to query physicsWorld here but getting the *scale* out is ugly and a lot of spaghetti code. i doubt i'd do it very often
+        btVector3 translateVector2(0.0f, -2.0f, 0.0f);
+
+        float finalMatrix2[16];
+        scaleMatrix2.getOpenGLSubMatrix(finalMatrix2);
+        finalMatrix2[12] = translateVector2.x();
+        finalMatrix2[13] = translateVector2.y();
+        finalMatrix2[14] = translateVector2.z();
+        finalMatrix2[15] = 1.0f;
+
+        bgfx::setTransform(finalMatrix2);
+        bgfx::setVertexBuffer(0, vbh);
+        bgfx::setIndexBuffer(ibh);
+        bgfx::submit(0, program);
+    }
 
     bgfx::frame();
     counter++;
@@ -354,8 +345,6 @@ int main(int argc, char **argv)
     else {
         std::cout << "Shader program create success!" << std::endl;
     }
-
-    bgfx::setViewClear(0, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH, 0x443355FF, 1.0f, 0);
 
     lastFrameTimePoint = std::chrono::high_resolution_clock::now();
 #if __EMSCRIPTEN__
