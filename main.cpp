@@ -2,6 +2,7 @@
 #include <vector>
 #include <fstream>
 #include <random>
+#include <chrono>
 
 #include <bgfx/bgfx.h>
 #include <bgfx/platform.h>
@@ -11,8 +12,6 @@
 #include <emscripten.h>
 #include "GLFW/glfw3.h"
 #else // Linux/X11
-#include <chrono>
-#include <algorithm>
 
 #include "GLFW/glfw3.h"
 #define GLFW_EXPOSE_NATIVE_X11
@@ -35,8 +34,11 @@ bgfx::VertexBufferHandle vbh;
 bgfx::IndexBufferHandle ibh;
 bgfx::ProgramHandle program;
 
-const double TARGET_FPS = 60.0;
-const double FRAME_DURATION = 1.0 / TARGET_FPS;
+const double FPS_FOR_BOTH_GFX_AND_PHYSICS_IF_WE_CANT_DETERMINE_REFRESH_RATE = 60.0;
+const double FRAME_DURATION_FOR_BOTH_GFX_AND_PHYSICS_IF_WE_CANT_DETERMINE_REFRESH_RATE = 1.0 / FPS_FOR_BOTH_GFX_AND_PHYSICS_IF_WE_CANT_DETERMINE_REFRESH_RATE;
+
+float fixedTimeStep_aka_1overRefreshRate = FRAME_DURATION_FOR_BOTH_GFX_AND_PHYSICS_IF_WE_CANT_DETERMINE_REFRESH_RATE; //TODO: Hardcoded 60hz *bullet physics* refresh rate for WASM. there's no [clean] way to get refresh rate from browser aside from benchmarking in js and no thanks. and we can't just use the calculated timeStep in renderFrame because apparently having it vary slightly each time makes bullet cry. i guess it's in the name "fixed"
+std::chrono::high_resolution_clock::time_point lastFrameTimePoint = std::chrono::high_resolution_clock::now();
 
 struct PosColorVertex
 {
@@ -211,7 +213,12 @@ void renderFrame() {
     bgfx::setViewTransform(0, view, proj);
 
     // Update physics simulation
-    physicsWorld.dynamicsWorld->stepSimulation(1.0f / 60.0f, 10);
+    //wasm let's the browser choose FPS :), but we need to determine out how much time has elapsed since last frame. however, even though we don't need to, for simplicity we'll just calculate this for Linux/X11 too
+    auto now = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<float> deltaTime = now - lastFrameTimePoint;
+    lastFrameTimePoint = now;
+    btScalar timeStep = deltaTime.count();
+    physicsWorld.dynamicsWorld->stepSimulation(timeStep, 10, fixedTimeStep_aka_1overRefreshRate);
 
     // Cube 1 (Physics-driven with rotation)
     btTransform trans;
@@ -350,23 +357,31 @@ int main(int argc, char **argv)
 
     bgfx::setViewClear(0, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH, 0x443355FF, 1.0f, 0);
 
+    lastFrameTimePoint = std::chrono::high_resolution_clock::now();
 #if __EMSCRIPTEN__
     emscripten_set_main_loop(renderFrame, 0, 0);
 #else // Linux/X11
+    GLFWmonitor* primaryMonitor = glfwGetPrimaryMonitor(); //TODO: get current monitor instead of primary. there is glfwGetWindowMonitor but it only works if we're fullscreen
+    const GLFWvidmode* mode = glfwGetVideoMode(primaryMonitor);
+    const int minFps = 1;
+    int refreshRate = mode ? bx::max(mode->refreshRate, minFps) : FPS_FOR_BOTH_GFX_AND_PHYSICS_IF_WE_CANT_DETERMINE_REFRESH_RATE;
+    fixedTimeStep_aka_1overRefreshRate = 1.0f / float(refreshRate);
+    double targetFrameDuration = fixedTimeStep_aka_1overRefreshRate;
+
     while(!glfwWindowShouldClose(window)) {
         auto frameStart = std::chrono::high_resolution_clock::now();
         renderFrame();
-        // Wait until FRAME_DURATION has passed while handling events
+        // Wait until targetFrameDuration has passed while handling events
         double elapsedSeconds = 0.0;
         do {
             auto currentTime = std::chrono::high_resolution_clock::now();
             elapsedSeconds = std::chrono::duration<double>(currentTime - frameStart).count();
 
-            glfwWaitEventsTimeout(std::max(0.01, FRAME_DURATION - elapsedSeconds));
+            glfwWaitEventsTimeout(std::max(0.01, targetFrameDuration - elapsedSeconds));
 
             currentTime = std::chrono::high_resolution_clock::now();
             elapsedSeconds = std::chrono::duration<double>(currentTime - frameStart).count();
-        } while (elapsedSeconds < FRAME_DURATION);
+        } while (elapsedSeconds < targetFrameDuration);
     }
 
     bgfx::destroy(program);
